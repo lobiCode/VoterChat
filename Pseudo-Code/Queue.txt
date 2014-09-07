@@ -1,0 +1,56 @@
+queue is a data structure where you delete messages from front and insert from back.
+ids is the id of the last msg the user has downloaded. Format of ids is [id_of_A, id_of_B, ...].
+Flush means discard all messages which have been downloaded by everyone.
+An empty line indicates the end of a transaction between the client and the server.
+
+Use a queue with a resizable array so that we can access the elements directly.
+
+               queue                    ids
+Start:         {}                       [-1]
+
+A sends M0:    {M0}                     [0]
+
+** min(ids) = 0, delete all messages not after M0 & reset ids
+Flush:         {}                       [0]
+
+B joins:       {}                       [0, 0]
+
+B sends M1:    {M1}                     [0, 1]
+B sends M2:    {M1, M2}                 [0, 2]
+B sends M3:    {M1, M2, M3}             [0, 3]
+
+A receives M1: {M1, M2, M3}             [1, 3]
+A receives M2: {M1, M2, M3}             [2, 3]
+A receives M3: {M1, M2, M3}             [3, 3]
+
+** min(ids) = 3, delete all messages whose pos < 3 & ids - 3
+Flush:         {}                       [0, 0]
+
+B leaves:      {}                       [0]
+
+A sends M4:    {M4}                     [1]
+A sends M5:    {M4, M5}                 [2]
+
+** min(ids) = 2, delete all messages whose pos < 2 & ids - 2
+Flush:         {}                       [0]
+
+B joins:       {}                       [0, 0]
+
+C joins:       {}                       [0, 0, 0]
+
+B sends M6:    {M6}                     [0, 1, 0]
+
+A receives M6: {M6}                     [1, 1, 0]
+
+B sends M7:    {M6, M7}                 [1, 2, 0]
+
+C receives M6: {M6, M7}                 [1, 2, 1]
+C receives M7: {M6, M7}                 [1, 2, 2]
+
+** min(ids) = 1, delete all messages whose pos < 1 & ids - 1
+Flush:         {M7}                     [0, 1, 1]
+
+A receives M7: {M7}                     [1, 1, 1]
+
+** min(ids) = 1, delete all messages whose pos < 1 & ids - 1
+Flush:         {}                       [0, 0, 0]

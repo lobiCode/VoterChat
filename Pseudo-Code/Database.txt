@@ -1,0 +1,51 @@
+Timestamp | Sender ID | GroupChat ID | Message | Amount of members left
+
+Start: {}
+
+User A sends a message in Group 1(Group must have at least 1 member):
+{ 15:42:31 06/09/2014 | User A | 1 | "Hey Dude!" | 1 }
+
+User B - Last connected 20:41:54 05/09/2014
+User B connects to the server. Time - 16:00:03 06/09/2014
+All of the messages in the queue are checked for all groups that the User B is in - for the time after 20:41:54 05/09/2014
+
+User B receives the message - 0 member to read left - the message is deleted from the queue
+
+{}
+
+-----------------------------------------------------------------------------------------------------------------------
+
+Start: {}
+
+Group 1 Members: 
+User A
+User B
+
+Group 2 Members:
+User A
+User B
+User C
+User D
+
+User A sends a message in Group 1:
+{ 15:42:31 06/09/2014 | User A | 1 | "Hey Guys! How are you doing?" | 2 }
+
+User D sends a message in Group 2:
+{ 
+15:42:31 06/09/2014 | User A | 1 | 1
+15:42:38 06/09/2014 | User D | 2 | 3 
+}
+
+User B sends a request. Time of last request: 15:42:20 06/09/2014
+Server checks for messages after 15:42:20 06/09/2014 in Group 1 & Group 2
+Match found in Group 1:
+	Timestamp, senderID, groupchatID & Message is sent to User B
+	As amount of members is 1: Delete the row as it's the last member to see it.
+Match found in Group 2: 
+	Timestamp, senderID, groupchatID & Message is sent to User B
+	"Amount of member left" is decreased from 3 to 2
+{
+15:42:38 06/09/2014 | User D | 2 | 2
+}
+
+Last connected for User B updated to 15:42:50 06/09/2014
