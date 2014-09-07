@@ -6,8 +6,9 @@ VoterChat will be a future Android app that is similar to Whatsapp-But it will s
 Features that will be implemented
 	-A secure democracy-type group chat with no logging. 
 	-No power abuse.
-	-A way to chat without texting
+	-A way to chat without texting.
 	
 	
+Website: www.voterchat.net
 
-Still in development. 
+Everything is still in development. 
