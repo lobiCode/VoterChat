@@ -13,3 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
+### FLASK CONFIG ###
+DEBUG = True
+SECRET_KEY = "development key"
+### FLASK CONFIG ###
+
+### REDIS CONFIG ###
+REDIS_HOST = "localhost"
+REDIS_PORT = 6379
+REDIS_DB = 0
+### REDIS CONFIG ###
