@@ -32,8 +32,8 @@ r = redis.StrictRedis(
 @app.route("/user/<username>")
 def get_user(username):
     """
-    Given the username, return
-    the profile of the user.
+    Return the profile of
+    the user.
     """
     try:
         user = models.get_user(username)
@@ -41,13 +41,13 @@ def get_user(username):
     except Exception, e:
         return jsonify({
             "message": str(e)
-        })
+        }), 400
 
 @app.route("/group/<groupname>")
 def get_group(groupname):
     """
-    Given the shortname of a group,
-    return the profile of the group.
+    Return the profile of
+    the group.
     """
     try:
         group = models.get_group(groupname)
@@ -55,7 +55,7 @@ def get_group(groupname):
     except Exception, e:
         return jsonify({
             "message": str(e)
-        })
+        }), 400
 
 ### APP FUNCTIONS ###
 
