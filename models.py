@@ -51,6 +51,10 @@ def not_exists(f):
         return f(self, *args, **kwargs)
     return wrapper
 
+def new_id(obj_type):
+    return r.incr("%s_last_id" % obj_type)
+
+
 class DBModel(object):
     """
     Representation of a database object.
@@ -117,9 +121,10 @@ class Message(DBModel):
 
     def __init__(self, msg_id, sender="", content="", stamp=datetime.now()):
         """
-        Creates a message given the ID of the message.
+        Creates a message given the following parameters:
+        * msg_id - ID of the message.
 
-        Optional Parameters:
+        Parameters:
         * sender - Username of the sender.
         * content - Content of the message.
         * stamp - Timestamp of the message.
@@ -131,6 +136,11 @@ class Message(DBModel):
         self.stamp = stamp
 
     @exists
+    def delete(self):
+        DBModel.delete(self)
+        r.delete("%s:count" % self.key)
+
+    @exists
     def send_users(self, users):
         """
         Send a list of users the message.
@@ -138,17 +148,17 @@ class Message(DBModel):
         r.set("%s:count" % self.key, len(users))
         for username in users:
             user = User(username)
-            r.rpush("%s:queue" % user.key, self.key)
+            user.load()
+            user.send(self.id)
 
     @exists
     def recieved(self):
         """
-        Mark a message to be recieved by a user.
+        Mark the message to be recieved by a user.
         """
         val = r.decr("%s:count" % self.key)
         if val == 0:
-            r.delete("%s" % self.key)
-            r.delete("%s:count" % self.key)
+            self.delete()
 
 class User(DBModel):
     """
@@ -160,13 +170,42 @@ class User(DBModel):
         Creates a user given the following parameters:
         * username - Username of the user.
 
-        Optional parameters:
+        Parameters:
         * email - Email address of the user.
         * phone_no - Phone number of the user.
         """
         DBModel.__init__(self, "user", username)
         self.email = email
         self.phone_no = phone_no
+
+    @exists
+    def delete(self):
+        DBModel.delete(self)
+        r.delete("%s:queue" % self.key)
+
+    @exists
+    def poll(self):
+        """
+        Pops messages from the user's queue.
+        """
+        msg_lst = []
+        while True:
+            msg_id = r.lpop("%s:queue" % self.key)
+            if not msg_id:
+                break
+            msg = Message(msg_id)
+            msg.load()
+            msg_lst.append(msg.get())
+            msg.recieved()
+        return msg_lst
+
+    @exists
+    def send(self, msg_id):
+        """
+        Add a message into the user's queue
+        given the ID of the message.
+        """
+        r.rpush("%s:queue" % self.key, msg_id)
 
 class Group(DBModel):
     """

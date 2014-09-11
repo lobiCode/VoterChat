@@ -36,6 +36,7 @@ r = redis.StrictRedis(
 
 import models
 
+# TODO: Require admin authentication.
 @app.route("/api/flushdb")
 def flushdb():
     """
@@ -44,10 +45,10 @@ def flushdb():
     r.flushdb()
     models.flushdb()
 
-    app.logger.info("Database has been flushed.")
+    app.logger.info("[DB] Database has been flushed.")
     return "", 200
 
-@app.route("/api/user/<username>", methods=["GET"])
+@app.route("/api/user/<username>")
 def get_user(username):
     """
     Return the profile of the user.
@@ -55,23 +56,68 @@ def get_user(username):
     user = models.User(username)
     return jsonify(user.get()), 200
 
-@app.route("/api/user/<username>", methods=["POST"])
+@app.route("/api/user/<username>/new", methods=["POST"])
 def new_user(username):
     """
     Creates a new user.
     """
-    app.logger.info(request.form)
     if not request.form:
         abort(400)
+
     user = models.User(
         username,
         email=request.form.get("email", ""),
         phone_no=request.form.get("phone_no", "")
     )
     user.new()
+
+    app.logger.info("[USER] User %s was created." % username)
     return jsonify(user.get()), 201
 
-@app.route("/api/group/<groupname>", methods=["GET"])
+# TODO: Require either admin or user authentication.
+@app.route("/api/user/<username>/delete")
+def delete_user(username):
+    """
+    Delete a user.
+    """
+    user = models.User(username)
+    user.delete()
+
+    app.logger.info("[USER] User %s has been deleted." % username)
+    return "", 200
+
+# TODO: Require user authentication.
+@app.route("/api/user/<recipient>/send", methods=["POST"])
+def send_user(recipient):
+    """
+    Send a message to a user.
+    """
+    if not request.form:
+        abort(400)
+    if not "username" in request.form:
+        return {
+            "message": "Field 'username' was not specified."
+        }, 400
+    if not "content" in request.form:
+        return {
+            "message": "Field 'content' was not specified."
+        }, 400
+
+    sender = models.User(request.form["username"])
+    recipient = models.User(recipient)
+
+    msg = models.Message(
+        models.new_id("message"),
+        sender=sender.id,
+        content=request.form["content"]
+    )
+    msg.new()
+    msg.send_users([recipient.id])
+
+    app.logger.info("[PM] %s -> %s" % (recipient.id, sender.id))
+    return "", 200
+
+@app.route("/api/group/<groupname>")
 def get_group(groupname):
     """
     Returns the profile of the group.
@@ -79,16 +125,52 @@ def get_group(groupname):
     group = models.Group(groupname)
     return jsonify(group.get())
 
-@app.route("/api/group/<groupname>", methods=["POST"])
+@app.route("/api/group/<groupname>/new", methods=["POST"])
 def new_group(groupname):
     """
     Creates a new group.
     """
+    if not request.form:
+        abort(400)
+
     group = models.Group(
         groupname
     )
     group.new()
+
+    app.logger.info("[GROUP] Group %s was created." % groupname)
     return jsonify(group.get()), 201
+
+# TODO: Require either admin or user authentication.
+@app.route("/api/group/<groupname>/delete")
+def delete_group(groupname):
+    """
+    Delete a group.
+    """
+    group = models.Group(groupname)
+    group.delete()
+
+    app.logger.info("[GROUP] Group %s has been deleted." % groupname)
+    return "", 200
+
+# TODO: Require user authentication.
+@app.route("/api/poll", methods=["POST"])
+def poll():
+    """
+    Poll the server for new messages.
+    """
+    if not request.form:
+        abort(400)
+    if not "username" in request.form:
+        return {
+            "message": "Field 'username' was not specified."
+        }, 400
+
+    user = models.User(request.form["username"])
+    msg_list = user.poll()
+
+    app.logger.info(msg_list)
+    return jsonify({"messages": msg_list}), 200
 
 ### APP FUNCTIONS ###
 
