@@ -14,96 +14,168 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from datetime import datetime
+from functools import wraps
+
 from main import r
 
-def init_db():
+def flushdb():
     """
-    Initialize the database.
+    Prepare the database to store users.
     """
-    r.flushdb()
+    r.set("message_last_id", 0)    
 
-class User(object):
-    def __init__(self, username):
-        """
-        Takes in the following parameters:
-        * username - Username of the user
-        """
-        self.username = username
+def exists(f):
+    """
+    Raises an exception if the user does not exist.
+    """
+    @wraps(f)
+    def wrapper(self, *args, **kwargs):
+        if not r.exists(self.key):
+            raise ValueError(
+                "Object %s does not exist in the database." % self.key
+            )
+        return f(self, *args, **kwargs)
+    return wrapper
 
-        self.groups = set()
+def not_exists(f):
+    """
+    Raises an exception if the user exists.
+    """
+    @wraps(f)
+    def wrapper(self, *args, **kwargs):
+        if r.exists(self.key):
+            raise ValueError(
+                "Object %s already exists in the database." % self.key
+            )
+        return f(self, *args, **kwargs)
+    return wrapper
 
-    def info(self):
+class DBModel(object):
+    """
+    Representation of a database object.
+    """
+    def __init__(self, obj_type, obj_id):
         """
-        Returns the user information.
-        """
-        data = self.__dict__
-        data.pop("username")
-        data["groups"] = list(self.groups)
-        return data
+        Creates a new object with the following data:
+        * obj_type - Object type
+        * obj_id - Object ID
 
-class Group(object):
+        The object will be located at "obj_type:obj_id"
+        after it is created. The key of the object can
+        be accessed using `obj.key`.
+        """
+        self.type = obj_type
+        self.id = obj_id
+        self.key = "%s:%s" % (self.type, self.id)
+
+        self.created_at = None
+
+    @not_exists
+    def new(self):
+        """
+        Creates a new object in the database.
+        """
+        self.created_at = datetime.now()
+        for k, v in self.__dict__.iteritems():
+            self.set(k, v)
+
+    @exists
+    def delete(self):
+        """
+        Delete the object in the database.
+        """
+        r.delete(self.key)
+
+    @exists
+    def get(self):
+        """
+        Returns user information.
+        """
+        return r.hgetall(self.key)
+
+    def set(self, field, value):
+        """
+        Sets object information given a field
+        and value.
+        """
+        setattr(self, field, value)
+        r.hset(self.key, field, value)
+
+    @exists
+    def load(self):
+        """
+        Load object information from the database.
+        """
+        for k, v in self.get().iteritems():
+            setattr(self, k, v)
+
+class Message(DBModel):
+    """
+    Class representing a message.
+    """
+
+    def __init__(self, msg_id, sender="", content="", stamp=datetime.now()):
+        """
+        Creates a message given the ID of the message.
+
+        Optional Parameters:
+        * sender - Username of the sender.
+        * content - Content of the message.
+        * stamp - Timestamp of the message.
+                  Default is the current time.
+        """
+        DBModel.__init__(self, "message", msg_id)
+        self.sender = sender
+        self.content = content
+        self.stamp = stamp
+
+    @exists
+    def send_users(self, users):
+        """
+        Send a list of users the message.
+        """
+        r.set("%s:count" % self.key, len(users))
+        for username in users:
+            user = User(username)
+            r.rpush("%s:queue" % user.key, self.key)
+
+    @exists
+    def recieved(self):
+        """
+        Mark a message to be recieved by a user.
+        """
+        val = r.decr("%s:count" % self.key)
+        if val == 0:
+            r.delete("%s" % self.key)
+            r.delete("%s:count" % self.key)
+
+class User(DBModel):
+    """
+    Class representing User object.
+    """
+
+    def __init__(self, username, email="", phone_no=""):
+        """
+        Creates a user given the following parameters:
+        * username - Username of the user.
+
+        Optional parameters:
+        * email - Email address of the user.
+        * phone_no - Phone number of the user.
+        """
+        DBModel.__init__(self, "user", username)
+        self.email = email
+        self.phone_no = phone_no
+
+class Group(DBModel):
+    """
+    Class representing a group.
+    """
+
     def __init__(self, groupname):
         """
-        Takes in the following parameters:
-        * groupname - Shortname of the group
+        Creates a group given the following parameters:
+        * groupname - Shortname of the group.
         """
-        self.groupname = groupname
-
-        self.members = set()
-
-    def info(self):
-        """
-        Returns the group information.
-        """
-        data = self.__dict__
-        data.pop("groupname")
-        data["members"] = list(self.members)
-        return data
-
-def new_user(user):
-    """
-    Creates a user given an instance
-    of the User class.
-    """
-    if r.exists("user:%s" % user.username):
-        raise ValueError("User with the same username exists.")
-
-    for k, v in user.info().iteritems():
-        r.hset("user:%s" % user.username, k, v)
-
-def new_group(group):
-    """
-    Creates a group given an instance
-    of the Group class.
-    """
-    if r.exists("group:%s" % group.groupname):
-        raise ValueError("Group with the same groupname exists.")
-
-    for k, v in group.info().iteritems():
-        r.hset("group:%s" % group.groupname, k, v)
-
-def get_user(username):
-    """
-    Returns a user given the username.
-    """
-    if not r.exists("user:%s" % username):
-        raise ValueError("User does not exist.")
-
-    user_info = r.hgetall("user:%s" % username)
-    user = User(username)
-    for key, val in user_info.iteritems():
-        setattr(user, key, val)
-    return user
-
-def get_group(groupname):
-    """
-    Returns a group given the name of the group.
-    """
-    if not r.exists("group:%s" % groupname):
-        raise ValueError("Group does not exist.")
-
-    group_info = r.hgetall("group:%s" % groupname)
-    group = Group(groupname)
-    for key, val in group_info.iteritems():
-        setattr(group, key, val)
-    return group
+        DBModel.__init__(self, "group", groupname)

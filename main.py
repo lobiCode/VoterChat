@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import config, models
+### INITIALIZATION ###
 
-from flask import Flask, jsonify
+import config
+
+from flask import Flask, abort, jsonify, request
 app = Flask(__name__)
 app.config.from_object("config")
 
@@ -27,35 +29,66 @@ r = redis.StrictRedis(
     db=config.REDIS_DB
 )
 
+### INITIALIZATION ###
+
+
 ### APP FUNCTIONS ###
 
-@app.route("/user/<username>")
+import models
+
+@app.route("/api/flushdb")
+def flushdb():
+    """
+    Flush the database.
+    """
+    r.flushdb()
+    models.flushdb()
+
+    app.logger.info("Database has been flushed.")
+    return "", 200
+
+@app.route("/api/user/<username>", methods=["GET"])
 def get_user(username):
     """
-    Return the profile of
-    the user.
+    Return the profile of the user.
     """
-    try:
-        user = models.get_user(username)
-        return jsonify(user.info())
-    except Exception, e:
-        return jsonify({
-            "message": str(e)
-        }), 400
+    user = models.User(username)
+    return jsonify(user.get()), 200
 
-@app.route("/group/<groupname>")
+@app.route("/api/user/<username>", methods=["POST"])
+def new_user(username):
+    """
+    Creates a new user.
+    """
+    app.logger.info(request.form)
+    if not request.form:
+        abort(400)
+    user = models.User(
+        username,
+        email=request.form.get("email", ""),
+        phone_no=request.form.get("phone_no", "")
+    )
+    user.new()
+    return jsonify(user.get()), 201
+
+@app.route("/api/group/<groupname>", methods=["GET"])
 def get_group(groupname):
     """
-    Return the profile of
-    the group.
+    Returns the profile of the group.
     """
-    try:
-        group = models.get_group(groupname)
-        return jsonify(group.info())
-    except Exception, e:
-        return jsonify({
-            "message": str(e)
-        }), 400
+    group = models.Group(groupname)
+    return jsonify(group.get())
+
+@app.route("/api/group/<groupname>", methods=["POST"])
+def new_group(groupname):
+    """
+    Creates a new group.
+    """
+    group = models.Group(
+        groupname
+    )
+    group.new()
+    return jsonify(group.get()), 201
 
 ### APP FUNCTIONS ###
 
