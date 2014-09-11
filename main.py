@@ -117,42 +117,6 @@ def send_user(recipient):
     app.logger.info("[PM] %s -> %s" % (recipient.id, sender.id))
     return "", 200
 
-@app.route("/api/group/<groupname>")
-def get_group(groupname):
-    """
-    Returns the profile of the group.
-    """
-    group = models.Group(groupname)
-    return jsonify(group.get())
-
-@app.route("/api/group/<groupname>/new", methods=["POST"])
-def new_group(groupname):
-    """
-    Creates a new group.
-    """
-    if not request.form:
-        abort(400)
-
-    group = models.Group(
-        groupname
-    )
-    group.new()
-
-    app.logger.info("[GROUP] Group %s was created." % groupname)
-    return jsonify(group.get()), 201
-
-# TODO: Require either admin or user authentication.
-@app.route("/api/group/<groupname>/delete")
-def delete_group(groupname):
-    """
-    Delete a group.
-    """
-    group = models.Group(groupname)
-    group.delete()
-
-    app.logger.info("[GROUP] Group %s has been deleted." % groupname)
-    return "", 200
-
 # TODO: Require user authentication.
 @app.route("/api/poll", methods=["POST"])
 def poll():

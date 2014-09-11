@@ -206,15 +206,3 @@ class User(DBModel):
         given the ID of the message.
         """
         r.rpush("%s:queue" % self.key, msg_id)
-
-class Group(DBModel):
-    """
-    Class representing a group.
-    """
-
-    def __init__(self, groupname):
-        """
-        Creates a group given the following parameters:
-        * groupname - Shortname of the group.
-        """
-        DBModel.__init__(self, "group", groupname)
