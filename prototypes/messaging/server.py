@@ -20,10 +20,20 @@ class Group(object):
         self.members = set() # Users in this group.
         self.messages = [] # Messages which still have to be delivered to members of this group.
 
+class Election(object):
+    def __init__(self, kind, username, groupname):
+        self.kind = None # "invite" or "kick"
+        self.until = datetime.datetime.now() + datetime.timedelta(minutes=5) # Expiration date/time.
+        self.yesvotes = 0
+        self.novotes = 0
+        self.voters = set() # Users who have already voted in this election
+        self.username = username # Who is this vote about?
+        self.groupname = groupname # And what group does the votee wants to join (or, from which group should he be kicked?)
+
         
 groups = {} # Known groups, mapping from groupname -> Group instance
 users = collections.defaultdict(set) # Known users, mapping from username -> Group instances they're in
-
+elections = {} # Active elections, mapping from (groupname, username) -> Election instance
 
 def join(data):
     """Process the join command"""
@@ -39,9 +49,29 @@ def join(data):
         if username in group.members:
             note = "You are already in the group '%s'" % groupname
         else:
+            # See if an identical election is in progress.
+            key = (groupname, username)
+            if key in elections:
+                note = "An election for user %s, group %s is already in progress" % (username, groupname)
+                return {"result": "error", "note": note}
+            # Initiate an election for user to join the group.
+            election = Election("invite", username, groupname)
+            elections[key] = election
+            # Send an appropriate message to users in this group.
+            expiration = election.until.strftime("%H:%M")
+            message = "User %s has asked to join the group %s. Use yes or no to vote for it. This election will run until %s" % (username, groupname, expiration)
+            for member in group.members:
+                msg = Message("system", member, message)
+                group.messages.append(msg)
+            # And also let the user who wants to join the group know about it
+            note = "Your join request has been send to %d member(s) of %s. This election will run until %s" % (len(group.members), groupname, expiration)
+            return {"result": "success", "note": note}
+
+            ''' When election succeeds (move this to POLL)
             group.members.add(username)
             users[username].add(group)
             note = "You have been added to the group '%s', which now has %d users." % (groupname, len(group.members))
+            '''
     else:
         # Group doesn't exist yet. Create a new group with the given name, and put the user in it.
         group = Group(groupname)
@@ -117,7 +147,7 @@ class VoterChat(object):
             raise cherrypy.HTTPError(405) # Only accept POST requests.
         data = cherrypy.request.json
         command = data["command"]
-        if command in ("join", "send", "poll", "list"): # , kick, leave, etc...
+        if command in ("join", "send", "poll", "list", "invite", "yes", "no"):
             result = globals()[command](data)
         else:
             result = {"result": "error", "message": "unknown or missing command"}
