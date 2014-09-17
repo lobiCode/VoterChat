@@ -19,6 +19,7 @@ limitations under the License.
 import config
 
 from flask import Flask, abort, jsonify, request
+from flask.ext.httpauth import HTTPBasicAuth
 app = Flask(__name__)
 app.config.from_object("config")
 
@@ -28,6 +29,18 @@ r = redis.StrictRedis(
     port=config.REDIS_PORT,
     db=config.REDIS_DB
 )
+
+auth = HTTPBasicAuth()
+@auth.verify_password
+def verify_password(username, password):
+    user = models.User(username)
+    if not user or not user.verify_password(password):
+        return False
+
+    return True
+
+
+
 
 ### INITIALIZATION ###
 
@@ -67,12 +80,15 @@ def new_user(username):
     user = models.User(
         username,
         email=request.form.get("email", ""),
-        phone_no=request.form.get("phone_no", "")
-    )
+        phone_no=request.form.get("phone_no", ""),
+          )
     user.new()
+
+    user.set_password(request.form.get("password", ""))
 
     app.logger.info("[USER] User %s was created." % username)
     return jsonify(user.get()), 201
+
 
 # TODO: Require either admin or user authentication.
 @app.route("/api/user/<username>/delete")
@@ -86,8 +102,9 @@ def delete_user(username):
     app.logger.info("[USER] User %s has been deleted." % username)
     return "", 200
 
-# TODO: Require user authentication.
+
 @app.route("/api/user/<recipient>/send", methods=["POST"])
+@auth.login_required
 def send_user(recipient):
     """
     Send a message to a user.
@@ -117,8 +134,8 @@ def send_user(recipient):
     app.logger.info("[PM] %s -> %s" % (recipient.id, sender.id))
     return "", 200
 
-# TODO: Require user authentication.
 @app.route("/api/poll", methods=["POST"])
+@auth.login_required
 def poll():
     """
     Poll the server for new messages.

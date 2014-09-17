@@ -16,6 +16,9 @@ limitations under the License.
 
 from datetime import datetime
 from functools import wraps
+from passlib.hash import sha256_crypt
+
+
 
 from main import r
 
@@ -89,7 +92,9 @@ class DBModel(object):
         """
         Delete the object in the database.
         """
+        r.delete("user:%s:password" % r.hget(self.key, "id"))
         r.delete(self.key)
+
 
     @exists
     def get(self):
@@ -107,6 +112,18 @@ class DBModel(object):
         r.hset(self.key, field, value)
 
     @exists
+    def set_password(self, password):
+        """
+        Set or update password.
+        """
+        r.set("user:%s:password" % r.hget(self.key, "id"), sha256_crypt.encrypt(password))
+    
+    @exists
+    def verify_password(self, password):
+        return sha256_crypt.verify(password, 
+                r.get("user:%s:password" %  r.hget(self.key, "id"))) 
+
+    @exists
     def load(self):
         """
         Load object information from the database.
@@ -118,6 +135,7 @@ class Message(DBModel):
     """
     Class representing a message.
     """
+
 
     def __init__(self, msg_id, sender="", content="", stamp=datetime.now()):
         """
